@@ -1,58 +1,530 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import hashlib
+import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
-import uuid
-from datetime import datetime
-
+from typing import List, Optional, Literal
+from datetime import datetime, timezone, timedelta
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ["DB_NAME"]]
 
-# Create the main app without a prefix
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
-class StatusCheck(BaseModel):
+# --------- Models ---------
+StationType = Literal["pc", "console", "table"]
+StationStatus = Literal["available", "occupied", "maintenance"]
+
+
+class Station(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    name: str
+    type: StationType
+    hourly_rate: float
+    status: StationStatus = "available"
+    active_session_id: Optional[str] = None
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
+class StationCreate(BaseModel):
+    name: str
+    type: StationType
+    hourly_rate: float
+
+
+class StationUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[StationType] = None
+    hourly_rate: Optional[float] = None
+    status: Optional[StationStatus] = None
+
+
+class MenuItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    price: float
+    category: str
+    emoji: str = "🍔"
+
+
+class MenuItemCreate(BaseModel):
+    name: str
+    price: float
+    category: str
+    emoji: str = "🍔"
+
+
+class SessionItem(BaseModel):
+    menu_item_id: str
+    name: str
+    price: float
+    quantity: int = 1
+    emoji: str = "🍔"
+
+
+class SessionStart(BaseModel):
+    station_id: str
+    customer_name: str
+    customer_phone: str
+
+
+class AddItemsRequest(BaseModel):
+    items: List[SessionItem]
+
+
+class Session(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    station_id: str
+    station_name: str
+    station_type: str
+    hourly_rate: float
+    customer_name: str
+    customer_phone: str
+    start_time: str  # ISO string UTC
+    end_time: Optional[str] = None
+    items: List[SessionItem] = []
+    status: Literal["active", "completed"] = "active"
+    time_cost: float = 0.0
+    items_cost: float = 0.0
+    total: float = 0.0
+    duration_minutes: float = 0.0
+
+
+class POSOrderCreate(BaseModel):
+    items: List[SessionItem]
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+
+
+class POSOrder(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    items: List[SessionItem]
+    total: float
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    created_at: str
+
+
+class PinVerify(BaseModel):
+    pin: str
+
+
+class PinChange(BaseModel):
+    current_pin: str
+    new_pin: str
+
+
+def _hash(pin: str) -> str:
+    return hashlib.sha256(pin.encode()).hexdigest()
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_iso(s: str) -> datetime:
+    return datetime.fromisoformat(s)
+
+
+# --------- Seed data ---------
+DEFAULT_MENU = [
+    {"name": "Lays Chips", "price": 20, "category": "Snacks", "emoji": "🍟"},
+    {"name": "Popcorn", "price": 40, "category": "Snacks", "emoji": "🍿"},
+    {"name": "Sandwich", "price": 80, "category": "Meals", "emoji": "🥪"},
+    {"name": "Burger", "price": 120, "category": "Meals", "emoji": "🍔"},
+    {"name": "Pizza Slice", "price": 100, "category": "Meals", "emoji": "🍕"},
+    {"name": "French Fries", "price": 90, "category": "Snacks", "emoji": "🍟"},
+    {"name": "Coca Cola", "price": 40, "category": "Drinks", "emoji": "🥤"},
+    {"name": "Sprite", "price": 40, "category": "Drinks", "emoji": "🥤"},
+    {"name": "Iced Tea", "price": 60, "category": "Drinks", "emoji": "🧋"},
+    {"name": "Red Bull", "price": 130, "category": "Drinks", "emoji": "⚡"},
+    {"name": "Coffee", "price": 50, "category": "Drinks", "emoji": "☕"},
+    {"name": "Chocolate Bar", "price": 30, "category": "Snacks", "emoji": "🍫"},
+]
+
+DEFAULT_STATIONS = [
+    {"name": "PC-01", "type": "pc", "hourly_rate": 80},
+    {"name": "PC-02", "type": "pc", "hourly_rate": 80},
+    {"name": "PC-03", "type": "pc", "hourly_rate": 80},
+    {"name": "PC-04", "type": "pc", "hourly_rate": 100},
+    {"name": "PS5-01", "type": "console", "hourly_rate": 150},
+    {"name": "PS5-02", "type": "console", "hourly_rate": 150},
+    {"name": "Xbox-01", "type": "console", "hourly_rate": 140},
+    {"name": "Pool Table", "type": "table", "hourly_rate": 200},
+]
+
+
+@app.on_event("startup")
+async def seed():
+    if await db.menu_items.count_documents({}) == 0:
+        docs = [MenuItem(**m).dict() for m in DEFAULT_MENU]
+        await db.menu_items.insert_many(docs)
+    if await db.stations.count_documents({}) == 0:
+        docs = [Station(**s).dict() for s in DEFAULT_STATIONS]
+        await db.stations.insert_many(docs)
+    if await db.config.count_documents({"_id": "manager_pin"}) == 0:
+        await db.config.insert_one({"_id": "manager_pin", "pin_hash": _hash("1234")})
+
+
+# --------- Health ---------
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"status": "ok", "app": "Playzo Gamezone Hub"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+# --------- Manager PIN ---------
+@api_router.post("/manager/verify-pin")
+async def verify_pin(payload: PinVerify):
+    cfg = await db.config.find_one({"_id": "manager_pin"}, {"_id": 0})
+    if not cfg:
+        raise HTTPException(500, "PIN not initialized")
+    ok = cfg["pin_hash"] == _hash(payload.pin)
+    return {"ok": ok}
 
-# Include the router in the main app
+
+@api_router.post("/manager/change-pin")
+async def change_pin(payload: PinChange):
+    cfg = await db.config.find_one({"_id": "manager_pin"}, {"_id": 0})
+    if not cfg or cfg["pin_hash"] != _hash(payload.current_pin):
+        raise HTTPException(401, "Invalid current PIN")
+    if not (payload.new_pin.isdigit() and 4 <= len(payload.new_pin) <= 8):
+        raise HTTPException(400, "PIN must be 4-8 digits")
+    await db.config.update_one({"_id": "manager_pin"}, {"$set": {"pin_hash": _hash(payload.new_pin)}})
+    return {"ok": True}
+
+
+# --------- Stations ---------
+@api_router.get("/stations", response_model=List[Station])
+async def list_stations():
+    docs = await db.stations.find({}, {"_id": 0}).to_list(1000)
+    return [Station(**d) for d in docs]
+
+
+@api_router.post("/stations", response_model=Station)
+async def create_station(payload: StationCreate):
+    st = Station(**payload.dict())
+    await db.stations.insert_one(st.dict())
+    return st
+
+
+@api_router.patch("/stations/{station_id}", response_model=Station)
+async def update_station(station_id: str, payload: StationUpdate):
+    updates = {k: v for k, v in payload.dict().items() if v is not None}
+    if updates:
+        await db.stations.update_one({"id": station_id}, {"$set": updates})
+    doc = await db.stations.find_one({"id": station_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Station not found")
+    return Station(**doc)
+
+
+@api_router.delete("/stations/{station_id}")
+async def delete_station(station_id: str):
+    doc = await db.stations.find_one({"id": station_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Station not found")
+    if doc.get("status") == "occupied":
+        raise HTTPException(400, "Cannot delete an occupied station")
+    await db.stations.delete_one({"id": station_id})
+    return {"ok": True}
+
+
+# --------- Menu ---------
+@api_router.get("/menu-items", response_model=List[MenuItem])
+async def list_menu():
+    docs = await db.menu_items.find({}, {"_id": 0}).to_list(1000)
+    return [MenuItem(**d) for d in docs]
+
+
+@api_router.post("/menu-items", response_model=MenuItem)
+async def create_menu(payload: MenuItemCreate):
+    item = MenuItem(**payload.dict())
+    await db.menu_items.insert_one(item.dict())
+    return item
+
+
+@api_router.delete("/menu-items/{item_id}")
+async def delete_menu(item_id: str):
+    await db.menu_items.delete_one({"id": item_id})
+    return {"ok": True}
+
+
+# --------- Sessions ---------
+def _compute_costs(session_doc: dict, end_dt: Optional[datetime] = None) -> dict:
+    start_dt = _parse_iso(session_doc["start_time"])
+    end_dt = end_dt or datetime.now(timezone.utc)
+    duration_min = max(0.0, (end_dt - start_dt).total_seconds() / 60.0)
+    hourly = float(session_doc["hourly_rate"])
+    time_cost = round((duration_min / 60.0) * hourly, 2)
+    items_cost = round(sum(i["price"] * i["quantity"] for i in session_doc.get("items", [])), 2)
+    total = round(time_cost + items_cost, 2)
+    return {
+        "duration_minutes": round(duration_min, 2),
+        "time_cost": time_cost,
+        "items_cost": items_cost,
+        "total": total,
+    }
+
+
+@api_router.post("/sessions/start", response_model=Session)
+async def start_session(payload: SessionStart):
+    station = await db.stations.find_one({"id": payload.station_id}, {"_id": 0})
+    if not station:
+        raise HTTPException(404, "Station not found")
+    if station["status"] != "available":
+        raise HTTPException(400, f"Station is {station['status']}")
+    sess = Session(
+        station_id=station["id"],
+        station_name=station["name"],
+        station_type=station["type"],
+        hourly_rate=station["hourly_rate"],
+        customer_name=payload.customer_name.strip(),
+        customer_phone=payload.customer_phone.strip(),
+        start_time=_now_iso(),
+    )
+    await db.sessions.insert_one(sess.dict())
+    await db.stations.update_one(
+        {"id": station["id"]},
+        {"$set": {"status": "occupied", "active_session_id": sess.id}},
+    )
+    return sess
+
+
+@api_router.get("/sessions/active", response_model=List[Session])
+async def list_active_sessions():
+    docs = await db.sessions.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    return [Session(**d) for d in docs]
+
+
+@api_router.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Session not found")
+    if doc["status"] == "active":
+        live = _compute_costs(doc)
+        return {**doc, **live, "live": True}
+    return {**doc, "live": False}
+
+
+@api_router.post("/sessions/{session_id}/add-items", response_model=Session)
+async def add_items(session_id: str, payload: AddItemsRequest):
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Session not found")
+    if doc["status"] != "active":
+        raise HTTPException(400, "Session is not active")
+    existing = doc.get("items", [])
+    for new_item in payload.items:
+        found = next((e for e in existing if e["menu_item_id"] == new_item.menu_item_id), None)
+        if found:
+            found["quantity"] += new_item.quantity
+        else:
+            existing.append(new_item.dict())
+    await db.sessions.update_one({"id": session_id}, {"$set": {"items": existing}})
+    doc["items"] = existing
+    return Session(**doc)
+
+
+@api_router.post("/sessions/{session_id}/remove-item")
+async def remove_item(session_id: str, body: dict):
+    menu_item_id = body.get("menu_item_id")
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Session not found")
+    items = [i for i in doc.get("items", []) if i["menu_item_id"] != menu_item_id]
+    await db.sessions.update_one({"id": session_id}, {"$set": {"items": items}})
+    doc["items"] = items
+    return Session(**doc)
+
+
+@api_router.post("/sessions/{session_id}/end")
+async def end_session(session_id: str):
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Session not found")
+    if doc["status"] != "active":
+        raise HTTPException(400, "Session already completed")
+    end_dt = datetime.now(timezone.utc)
+    costs = _compute_costs(doc, end_dt)
+    updates = {
+        **costs,
+        "end_time": end_dt.isoformat(),
+        "status": "completed",
+    }
+    await db.sessions.update_one({"id": session_id}, {"$set": updates})
+    await db.stations.update_one(
+        {"id": doc["station_id"]},
+        {"$set": {"status": "available", "active_session_id": None}},
+    )
+    doc.update(updates)
+    return doc
+
+
+# --------- POS (walk-in) ---------
+@api_router.post("/pos/orders", response_model=POSOrder)
+async def create_pos(payload: POSOrderCreate):
+    total = round(sum(i.price * i.quantity for i in payload.items), 2)
+    order = POSOrder(
+        items=payload.items,
+        total=total,
+        customer_name=payload.customer_name,
+        customer_phone=payload.customer_phone,
+        created_at=_now_iso(),
+    )
+    await db.pos_orders.insert_one(order.dict())
+    return order
+
+
+@api_router.get("/pos/orders", response_model=List[POSOrder])
+async def list_pos():
+    docs = await db.pos_orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return [POSOrder(**d) for d in docs]
+
+
+# --------- Bills (unified history) ---------
+@api_router.get("/bills")
+async def list_bills(limit: int = 100):
+    sessions = await db.sessions.find(
+        {"status": "completed"}, {"_id": 0}
+    ).sort("end_time", -1).to_list(limit)
+    pos = await db.pos_orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    bills = []
+    for s in sessions:
+        bills.append({
+            "id": s["id"],
+            "kind": "session",
+            "title": f"{s['station_name']} · {s['customer_name']}",
+            "customer_name": s["customer_name"],
+            "customer_phone": s["customer_phone"],
+            "time_cost": s.get("time_cost", 0),
+            "items_cost": s.get("items_cost", 0),
+            "total": s.get("total", 0),
+            "duration_minutes": s.get("duration_minutes", 0),
+            "items": s.get("items", []),
+            "created_at": s.get("end_time"),
+        })
+    for p in pos:
+        bills.append({
+            "id": p["id"],
+            "kind": "pos",
+            "title": f"POS Order · {p.get('customer_name') or 'Walk-in'}",
+            "customer_name": p.get("customer_name"),
+            "customer_phone": p.get("customer_phone"),
+            "time_cost": 0,
+            "items_cost": p["total"],
+            "total": p["total"],
+            "duration_minutes": 0,
+            "items": p.get("items", []),
+            "created_at": p.get("created_at"),
+        })
+    bills.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return bills[:limit]
+
+
+# --------- Analytics ---------
+def _in_range(iso: Optional[str], start: datetime, end: datetime) -> bool:
+    if not iso:
+        return False
+    dt = _parse_iso(iso)
+    return start <= dt < end
+
+
+@api_router.get("/analytics/summary")
+async def analytics_summary(range_type: str = "daily", date: Optional[str] = None):
+    """range_type: 'daily' -> single day; 'monthly' -> whole month.
+    date: YYYY-MM-DD for daily, YYYY-MM for monthly (defaults to today/this month, UTC)."""
+    now = datetime.now(timezone.utc)
+    if range_type == "monthly":
+        if date:
+            year, month = map(int, date.split("-")[:2])
+        else:
+            year, month = now.year, now.month
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        if month == 12:
+            end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+    else:
+        if date:
+            y, m, d = map(int, date.split("-")[:3])
+            start = datetime(y, m, d, tzinfo=timezone.utc)
+        else:
+            start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        end = start + timedelta(days=1)
+
+    sessions = await db.sessions.find({"status": "completed"}, {"_id": 0}).to_list(5000)
+    pos = await db.pos_orders.find({}, {"_id": 0}).to_list(5000)
+
+    time_revenue = 0.0
+    fnb_revenue = 0.0
+    session_count = 0
+    pos_count = 0
+    total_minutes = 0.0
+
+    # Buckets: for daily => hours 0-23; for monthly => days 1..end
+    if range_type == "monthly":
+        num_buckets = (end - start).days
+        labels = [str(i + 1) for i in range(num_buckets)]
+
+        def bucket_of(dt: datetime) -> int:
+            return (dt - start).days
+    else:
+        num_buckets = 24
+        labels = [f"{i:02d}" for i in range(24)]
+
+        def bucket_of(dt: datetime) -> int:
+            return dt.hour
+
+    time_series = [0.0] * num_buckets
+    fnb_series = [0.0] * num_buckets
+
+    for s in sessions:
+        if _in_range(s.get("end_time"), start, end):
+            time_revenue += s.get("time_cost", 0)
+            fnb_revenue += s.get("items_cost", 0)
+            total_minutes += s.get("duration_minutes", 0)
+            session_count += 1
+            b = bucket_of(_parse_iso(s["end_time"]))
+            if 0 <= b < num_buckets:
+                time_series[b] += s.get("time_cost", 0)
+                fnb_series[b] += s.get("items_cost", 0)
+
+    for p in pos:
+        if _in_range(p.get("created_at"), start, end):
+            fnb_revenue += p.get("total", 0)
+            pos_count += 1
+            b = bucket_of(_parse_iso(p["created_at"]))
+            if 0 <= b < num_buckets:
+                fnb_series[b] += p.get("total", 0)
+
+    total = round(time_revenue + fnb_revenue, 2)
+    return {
+        "range_type": range_type,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "total_revenue": total,
+        "time_revenue": round(time_revenue, 2),
+        "fnb_revenue": round(fnb_revenue, 2),
+        "session_count": session_count,
+        "pos_count": pos_count,
+        "total_minutes": round(total_minutes, 2),
+        "labels": labels,
+        "time_series": [round(x, 2) for x in time_series],
+        "fnb_series": [round(x, 2) for x in fnb_series],
+    }
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -63,12 +535,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
