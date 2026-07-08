@@ -101,6 +101,8 @@ export const api = {
   listMenu: () => req<MenuItem[]>("/menu-items"),
   createMenu: (data: Omit<MenuItem, "id">) =>
     req<MenuItem>("/menu-items", { method: "POST", body: JSON.stringify(data) }),
+  updateMenu: (id: string, data: Partial<Omit<MenuItem, "id">>) =>
+    req<MenuItem>(`/menu-items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteMenu: (id: string) => req(`/menu-items/${id}`, { method: "DELETE" }),
 
   // Sessions

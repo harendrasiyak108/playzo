@@ -253,6 +253,24 @@ async def create_menu(payload: MenuItemCreate):
     return item
 
 
+class MenuItemUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+    emoji: Optional[str] = None
+
+
+@api_router.patch("/menu-items/{item_id}", response_model=MenuItem)
+async def update_menu(item_id: str, payload: MenuItemUpdate):
+    updates = {k: v for k, v in payload.dict().items() if v is not None}
+    if updates:
+        await db.menu_items.update_one({"id": item_id}, {"$set": updates})
+    doc = await db.menu_items.find_one({"id": item_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Menu item not found")
+    return MenuItem(**doc)
+
+
 @api_router.delete("/menu-items/{item_id}")
 async def delete_menu(item_id: str):
     await db.menu_items.delete_one({"id": item_id})

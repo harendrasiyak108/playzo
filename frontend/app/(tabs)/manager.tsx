@@ -49,9 +49,13 @@ export default function ManagerScreen() {
       if (res.ok) {
         setUnlocked(true);
         setPin("");
-      } else setPinError("Wrong PIN");
+      } else {
+        setPinError("Wrong PIN");
+        setPin("");
+      }
     } catch {
       setPinError("Wrong PIN");
+      setPin("");
     }
   };
 

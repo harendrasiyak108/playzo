@@ -101,7 +101,19 @@ export default function POSScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Walk-in POS" subtitle={`${count} items · ${money(total)}`} />
+      <ScreenHeader
+        title="Walk-in POS"
+        subtitle={`${count} items · ${money(total)}`}
+        right={
+          <Pressable
+            testID="pos-manage-menu-btn"
+            onPress={() => router.push("/modal/menu-manage")}
+            style={styles.headerBtn}
+          >
+            <Ionicons name="restaurant" size={20} color={colors.onSurface} />
+          </Pressable>
+        }
+      />
       <ChipRow options={categories as any} value={cat} onChange={setCat} testIDPrefix="pos-cat" />
 
       <FlatList
@@ -195,6 +207,16 @@ export default function POSScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  headerBtn: {
+    backgroundColor: colors.surfaceTertiary,
+    height: 40,
+    width: 40,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   card: {
     flex: 1,
     backgroundColor: colors.surfaceSecondary,

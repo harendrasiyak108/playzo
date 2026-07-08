@@ -18,7 +18,7 @@ export default function TabsLayout() {
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "700",
           letterSpacing: 0.5,
           textTransform: "uppercase",
@@ -30,6 +30,13 @@ export default function TabsLayout() {
         options={{
           title: "Stations",
           tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="active"
+        options={{
+          title: "Active",
+          tabBarIcon: ({ color, size }) => <Ionicons name="pulse" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

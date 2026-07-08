@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ChipRow } from "@/src/components/ChipRow";
 import { colors, spacing, radius, statusColor, stationTypeIcon } from "@/src/theme";
@@ -124,7 +123,7 @@ export default function StationsScreen() {
                   router.push({ pathname: "/modal/station-form", params: { stationId: item.id } });
                 }
               }}
-              onLongPress={() => router.push({ pathname: "/modal/station-form", params: { stationId: item.id } })}
+              onEdit={() => router.push({ pathname: "/modal/station-form", params: { stationId: item.id } })}
             />
           )}
         />
@@ -138,45 +137,54 @@ function StationCard({
   live,
   now,
   onPress,
-  onLongPress,
+  onEdit,
 }: {
   station: Station;
   live?: { start: string; rate: number; sid: string; customer: string };
   now: number;
   onPress: () => void;
-  onLongPress: () => void;
+  onEdit: () => void;
 }) {
   const border = statusColor(station.status);
   const { ms, cost } = live ? computeLiveCost(live.start, live.rate, now) : { ms: 0, cost: 0 };
 
   return (
-    <Pressable
-      testID={`station-card-${station.name}`}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={[styles.card, { borderTopColor: border }]}
-    >
-      <View style={styles.rowBetween}>
-        <Text style={styles.stationName}>{station.name}</Text>
-        <Text style={{ fontSize: 20 }}>{stationTypeIcon(station.type)}</Text>
-      </View>
-      <View style={[styles.pill, { backgroundColor: border + "22", borderColor: border }]}>
-        <Text style={[styles.pillText, { color: border }]}>{station.status.toUpperCase()}</Text>
-      </View>
+    <View style={styles.cardWrap}>
+      <Pressable
+        testID={`station-card-${station.name}`}
+        onPress={onPress}
+        style={[styles.card, { borderTopColor: border }]}
+      >
+        <View style={styles.nameRow}>
+          <Text style={{ fontSize: 18 }}>{stationTypeIcon(station.type)}</Text>
+          <Text style={styles.stationName} numberOfLines={1}>{station.name}</Text>
+        </View>
+        <View style={[styles.pill, { backgroundColor: border + "22", borderColor: border }]}>
+          <Text style={[styles.pillText, { color: border }]}>{station.status.toUpperCase()}</Text>
+        </View>
 
-      {live ? (
-        <>
-          <Text style={styles.customer} numberOfLines={1}>{live.customer}</Text>
-          <Text style={styles.timer} testID={`timer-${station.name}`}>{formatDuration(ms)}</Text>
-          <Text style={styles.costLive}>{money(cost)}</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.rateLabel}>Hourly</Text>
-          <Text style={styles.rateValue}>{money(station.hourly_rate)}</Text>
-        </>
-      )}
-    </Pressable>
+        {live ? (
+          <>
+            <Text style={styles.customer} numberOfLines={1}>{live.customer}</Text>
+            <Text style={styles.timer} testID={`timer-${station.name}`}>{formatDuration(ms)}</Text>
+            <Text style={styles.costLive}>{money(cost)}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.rateLabel}>Hourly</Text>
+            <Text style={styles.rateValue}>{money(station.hourly_rate)}</Text>
+          </>
+        )}
+      </Pressable>
+      <Pressable
+        testID={`edit-station-${station.name}`}
+        onPress={onEdit}
+        style={styles.editBadge}
+        hitSlop={10}
+      >
+        <Ionicons name="pencil" size={12} color={colors.onSurface} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -202,6 +210,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     minHeight: 150,
   },
+  cardWrap: { flex: 1, position: "relative" },
+  editBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.surfaceTertiary,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingRight: 28 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   stationName: {
     color: colors.onSurface,
