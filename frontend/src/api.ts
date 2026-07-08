@@ -59,6 +59,8 @@ export type Session = {
   live?: boolean;
 };
 
+export type PaymentEntry = { name?: string | null; method: "cash" | "upi"; amount: number };
+
 export type Bill = {
   id: string;
   kind: "session" | "pos";
@@ -71,6 +73,17 @@ export type Bill = {
   duration_minutes: number;
   items: SessionItem[];
   created_at: string;
+  payment_status: "paid" | "unpaid";
+  payment_method?: string | null;
+  payments: PaymentEntry[];
+  paid_at?: string | null;
+};
+
+export type CustomerLookup = {
+  visit_count: number;
+  last_name: string | null;
+  last_visit_at: string | null;
+  total_spent: number;
 };
 
 export type Analytics = {
@@ -130,7 +143,20 @@ export const api = {
     ),
 
   // Bills
-  listBills: () => req<Bill[]>("/bills"),
+  listBills: (unpaidOnly?: boolean) =>
+    req<Bill[]>(`/bills${unpaidOnly ? "?unpaid_only=true" : ""}`),
+  payBill: (
+    kind: "session" | "pos",
+    id: string,
+    method: "cash" | "upi" | "split",
+    payments?: PaymentEntry[],
+  ) =>
+    req<{ ok: boolean } & Partial<Bill>>(`/bills/${kind}/${id}/pay`, {
+      method: "POST",
+      body: JSON.stringify({ method, payments }),
+    }),
+  customerLookup: (phone: string) =>
+    req<CustomerLookup>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
 
   // Manager
   verifyPin: (pin: string) => req<{ ok: boolean }>("/manager/verify-pin", { method: "POST", body: JSON.stringify({ pin }) }),

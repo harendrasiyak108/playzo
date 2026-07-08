@@ -98,6 +98,10 @@ class Session(BaseModel):
     items_cost: float = 0.0
     total: float = 0.0
     duration_minutes: float = 0.0
+    payment_status: Literal["paid", "unpaid"] = "unpaid"
+    payment_method: Optional[str] = None  # cash | upi | split
+    payments: List[dict] = []
+    paid_at: Optional[str] = None
 
 
 class POSOrderCreate(BaseModel):
@@ -113,6 +117,10 @@ class POSOrder(BaseModel):
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     created_at: str
+    payment_status: Literal["paid", "unpaid"] = "unpaid"
+    payment_method: Optional[str] = None
+    payments: List[dict] = []
+    paid_at: Optional[str] = None
 
 
 class PinVerify(BaseModel):
@@ -412,11 +420,14 @@ async def list_pos():
 
 # --------- Bills (unified history) ---------
 @api_router.get("/bills")
-async def list_bills(limit: int = 100):
-    sessions = await db.sessions.find(
-        {"status": "completed"}, {"_id": 0}
-    ).sort("end_time", -1).to_list(limit)
-    pos = await db.pos_orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+async def list_bills(limit: int = 100, unpaid_only: bool = False):
+    sess_query: dict = {"status": "completed"}
+    pos_query: dict = {}
+    if unpaid_only:
+        sess_query["payment_status"] = "unpaid"
+        pos_query["payment_status"] = "unpaid"
+    sessions = await db.sessions.find(sess_query, {"_id": 0}).sort("end_time", -1).to_list(limit)
+    pos = await db.pos_orders.find(pos_query, {"_id": 0}).sort("created_at", -1).to_list(limit)
     bills = []
     for s in sessions:
         bills.append({
@@ -431,6 +442,10 @@ async def list_bills(limit: int = 100):
             "duration_minutes": s.get("duration_minutes", 0),
             "items": s.get("items", []),
             "created_at": s.get("end_time"),
+            "payment_status": s.get("payment_status", "unpaid"),
+            "payment_method": s.get("payment_method"),
+            "payments": s.get("payments", []),
+            "paid_at": s.get("paid_at"),
         })
     for p in pos:
         bills.append({
@@ -445,9 +460,90 @@ async def list_bills(limit: int = 100):
             "duration_minutes": 0,
             "items": p.get("items", []),
             "created_at": p.get("created_at"),
+            "payment_status": p.get("payment_status", "unpaid"),
+            "payment_method": p.get("payment_method"),
+            "payments": p.get("payments", []),
+            "paid_at": p.get("paid_at"),
         })
     bills.sort(key=lambda x: x["created_at"] or "", reverse=True)
     return bills[:limit]
+
+
+class PaymentEntry(BaseModel):
+    name: Optional[str] = None
+    method: Literal["cash", "upi"]
+    amount: float
+
+
+class PayRequest(BaseModel):
+    method: Literal["cash", "upi", "split"]
+    payments: Optional[List[PaymentEntry]] = None
+
+
+@api_router.post("/bills/{kind}/{bill_id}/pay")
+async def pay_bill(kind: str, bill_id: str, payload: PayRequest):
+    if kind not in ("session", "pos"):
+        raise HTTPException(400, "Invalid kind")
+    collection = db.sessions if kind == "session" else db.pos_orders
+    doc = await collection.find_one({"id": bill_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Bill not found")
+    if kind == "session" and doc.get("status") != "completed":
+        raise HTTPException(400, "Session must be ended before payment")
+    total = float(doc["total"])
+    payments_list: list = []
+    if payload.method == "split":
+        if not payload.payments or len(payload.payments) < 2:
+            raise HTTPException(400, "Split requires at least 2 payers")
+        s = round(sum(p.amount for p in payload.payments), 2)
+        if abs(s - total) > 0.01:
+            raise HTTPException(400, f"Split total {s} must equal bill total {total}")
+        payments_list = [p.dict() for p in payload.payments]
+    else:
+        payments_list = [{"name": None, "method": payload.method, "amount": total}]
+    updates = {
+        "payment_status": "paid",
+        "payment_method": payload.method,
+        "payments": payments_list,
+        "paid_at": _now_iso(),
+    }
+    await collection.update_one({"id": bill_id}, {"$set": updates})
+    return {"ok": True, **updates}
+
+
+# --------- Customer lookup (loyalty) ---------
+@api_router.get("/customers/lookup")
+async def customer_lookup(phone: str):
+    phone = phone.strip()
+    if len(phone) < 5:
+        return {"visit_count": 0, "last_name": None, "last_visit_at": None, "total_spent": 0.0}
+    sess = await db.sessions.find(
+        {"customer_phone": phone, "status": "completed"}, {"_id": 0}
+    ).sort("end_time", -1).to_list(500)
+    pos = await db.pos_orders.find(
+        {"customer_phone": phone}, {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+    visits = len(sess) + len(pos)
+    last_name = None
+    last_visit_at = None
+    total_spent = 0.0
+    for s in sess:
+        total_spent += float(s.get("total", 0))
+        if not last_visit_at or s.get("end_time", "") > last_visit_at:
+            last_visit_at = s.get("end_time")
+            last_name = s.get("customer_name")
+    for p in pos:
+        total_spent += float(p.get("total", 0))
+        if not last_visit_at or p.get("created_at", "") > last_visit_at:
+            last_visit_at = p.get("created_at")
+            if p.get("customer_name"):
+                last_name = p.get("customer_name")
+    return {
+        "visit_count": visits,
+        "last_name": last_name,
+        "last_visit_at": last_visit_at,
+        "total_spent": round(total_spent, 2),
+    }
 
 
 # --------- Analytics ---------

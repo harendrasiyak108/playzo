@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Linking, Platform,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,13 +16,13 @@ export default function BillView() {
   const insets = useSafeAreaInsets();
   const [bill, setBill] = useState<Bill | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      // Simplest: fetch all bills, find by id.
-      const list = await api.listBills();
-      setBill(list.find((b) => b.id === billId && b.kind === kind) || null);
-    })();
+  const load = useCallback(async () => {
+    const list = await api.listBills();
+    setBill(list.find((b) => b.id === billId && b.kind === kind) || null);
   }, [billId, kind]);
+
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const receiptText = useMemo(() => {
     if (!bill) return "";
@@ -131,11 +131,40 @@ export default function BillView() {
             <Text style={styles.totalVal} testID="bill-total">{money(bill.total)}</Text>
           </View>
 
+          <View style={[styles.paidPill, { backgroundColor: (bill.payment_status === "paid" ? colors.success : colors.warning) + "22", borderColor: bill.payment_status === "paid" ? colors.success : colors.warning }]}>
+            <Ionicons name={bill.payment_status === "paid" ? "checkmark-circle" : "alert-circle"} size={14} color={bill.payment_status === "paid" ? colors.success : colors.warning} />
+            <Text style={[styles.paidPillText, { color: bill.payment_status === "paid" ? colors.success : colors.warning }]}>
+              {bill.payment_status === "paid" ? `PAID · ${(bill.payment_method || "").toUpperCase()}` : "UNPAID"}
+            </Text>
+          </View>
+
+          {bill.payment_status === "paid" && bill.payments.length > 1 && (
+            <View style={{ marginTop: spacing.md }}>
+              <Text style={styles.sectionTitle}>Split</Text>
+              {bill.payments.map((p, i) => (
+                <View key={i} style={styles.line}>
+                  <Text style={styles.lineLbl}>{p.name || `Payer ${i + 1}`} · {p.method.toUpperCase()}</Text>
+                  <Text style={styles.lineVal}>{money(p.amount)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <Text style={styles.thanks}>Thanks for playing at Playzo!</Text>
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        {bill.payment_status !== "paid" && (
+          <Pressable
+            style={styles.payBtn}
+            onPress={() => router.push({ pathname: "/modal/pay", params: { billId: bill.id, kind: bill.kind, total: String(bill.total) } })}
+            testID="mark-paid-btn"
+          >
+            <Ionicons name="wallet" size={18} color="#02120a" />
+            <Text style={styles.payText}>Mark as Paid</Text>
+          </Pressable>
+        )}
         <Pressable style={styles.smsBtn} onPress={shareSMS} testID="share-sms-btn">
           <Ionicons name="chatbubble-ellipses" size={18} color={colors.onSurface} />
           <Text style={styles.smsText}>SMS</Text>
@@ -174,4 +203,13 @@ const styles = StyleSheet.create({
   smsText: { color: colors.onSurface, fontWeight: "800", letterSpacing: 0.6 },
   waBtn: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: 14 },
   waText: { color: colors.onBrand, fontWeight: "900", letterSpacing: 0.6 },
+  payBtn: { flex: 1.4, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, backgroundColor: colors.success, borderRadius: radius.md, paddingVertical: 14 },
+  payText: { color: "#02120a", fontWeight: "900", letterSpacing: 0.6, fontSize: 14 },
+  paidPill: {
+    alignSelf: "center",
+    flexDirection: "row", alignItems: "center", gap: 6,
+    borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,
+    marginTop: spacing.md,
+  },
+  paidPillText: { fontWeight: "900", fontSize: 11, letterSpacing: 1 },
 });

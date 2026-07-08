@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing, radius, stationTypeIcon } from "@/src/theme";
-import { api, Station, money } from "@/src/api";
+import { api, CustomerLookup, Station, money } from "@/src/api";
 
 export default function StartSessionScreen() {
   const { stationId } = useLocalSearchParams<{ stationId: string }>();
@@ -18,6 +18,7 @@ export default function StartSessionScreen() {
   const [phone, setPhone] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lookup, setLookup] = useState<CustomerLookup | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -25,6 +26,20 @@ export default function StartSessionScreen() {
       setStation(list.find((s) => s.id === stationId) || null);
     })();
   }, [stationId]);
+
+  const checkPhone = async () => {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 7) return setLookup(null);
+    try {
+      const info = await api.customerLookup(digits);
+      setLookup(info);
+      if (info.visit_count > 0 && !name && info.last_name) {
+        setName(info.last_name);
+      }
+    } catch {
+      setLookup(null);
+    }
+  };
 
   const start = async () => {
     setErr("");
@@ -81,12 +96,26 @@ export default function StartSessionScreen() {
           <TextInput
             value={phone}
             onChangeText={setPhone}
+            onBlur={checkPhone}
             placeholder="e.g. 9876543210"
             placeholderTextColor={colors.onSurfaceTertiary}
             style={styles.input}
             keyboardType="phone-pad"
             testID="customer-phone-input"
           />
+
+          {lookup && lookup.visit_count > 0 && (
+            <View style={styles.loyaltyBanner} testID="loyalty-banner">
+              <Ionicons name="star" size={18} color={colors.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.loyaltyTitle}>Returning customer</Text>
+                <Text style={styles.loyaltyMeta}>
+                  {lookup.visit_count} {lookup.visit_count === 1 ? "visit" : "visits"} · Spent {money(lookup.total_spent)}
+                  {lookup.last_visit_at ? ` · Last ${new Date(lookup.last_visit_at).toLocaleDateString()}` : ""}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {err ? <Text style={styles.err} testID="start-error">{err}</Text> : null}
         </ScrollView>
@@ -112,6 +141,13 @@ const styles = StyleSheet.create({
   label: { color: colors.onSurfaceTertiary, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", fontWeight: "700", marginTop: spacing.sm },
   input: { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderWidth: 1, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 14, fontSize: 15 },
   err: { color: colors.error, fontWeight: "700", marginTop: spacing.sm },
+  loyaltyBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: colors.brand + "18", borderColor: colors.brand,
+    borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.sm,
+  },
+  loyaltyTitle: { color: colors.brand, fontWeight: "900", fontSize: 12, letterSpacing: 0.8, textTransform: "uppercase" },
+  loyaltyMeta: { color: colors.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
   footer: { padding: spacing.lg, borderTopColor: colors.divider, borderTopWidth: 1, backgroundColor: colors.surface },
   cta: { backgroundColor: colors.brand, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingVertical: 16 },
   ctaText: { color: colors.onBrand, fontWeight: "900", fontSize: 16, letterSpacing: 1, textTransform: "uppercase" },
