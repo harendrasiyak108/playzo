@@ -79,6 +79,30 @@ export type Bill = {
   paid_at?: string | null;
 };
 
+export type CloseOut = {
+  date: string;
+  start: string;
+  end: string;
+  cash_total: number;
+  upi_total: number;
+  collected: number;
+  unpaid_total: number;
+  total_billed: number;
+  time_revenue: number;
+  fnb_revenue: number;
+  session_count: number;
+  pos_count: number;
+  unpaid_bills: {
+    id: string;
+    kind: "session" | "pos";
+    title: string;
+    total: number;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    created_at: string;
+  }[];
+};
+
 export type CustomerLookup = {
   visit_count: number;
   last_name: string | null;
@@ -169,6 +193,8 @@ export const api = {
   // Analytics
   analytics: (range_type: "daily" | "monthly", date?: string) =>
     req<Analytics>(`/analytics/summary?range_type=${range_type}${date ? `&date=${date}` : ""}`),
+  closeOut: (date?: string) =>
+    req<CloseOut>(`/reports/close-out${date ? `?date=${date}` : ""}`),
 };
 
 export const money = (n: number) => `₹${(n ?? 0).toFixed(2)}`;

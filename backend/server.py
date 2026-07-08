@@ -554,6 +554,105 @@ def _in_range(iso: Optional[str], start: datetime, end: datetime) -> bool:
     return start <= dt < end
 
 
+# --------- Analytics ---------
+def _in_range(iso: Optional[str], start: datetime, end: datetime) -> bool:
+    if not iso:
+        return False
+    dt = _parse_iso(iso)
+    return start <= dt < end
+
+
+def _day_bounds(date: Optional[str]) -> tuple[datetime, datetime]:
+    now = datetime.now(timezone.utc)
+    if date:
+        y, m, d = map(int, date.split("-")[:3])
+        start = datetime(y, m, d, tzinfo=timezone.utc)
+    else:
+        start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    return start, start + timedelta(days=1)
+
+
+@api_router.get("/reports/close-out")
+async def close_out_report(date: Optional[str] = None):
+    start, end = _day_bounds(date)
+    sessions = await db.sessions.find({"status": "completed"}, {"_id": 0}).to_list(5000)
+    pos = await db.pos_orders.find({}, {"_id": 0}).to_list(5000)
+
+    cash_total = 0.0
+    upi_total = 0.0
+    unpaid_total = 0.0
+    unpaid_bills: list = []
+    time_revenue = 0.0
+    fnb_revenue = 0.0
+    session_count = 0
+    pos_count = 0
+
+    def add_payments(doc: dict, kind: str) -> None:
+        nonlocal cash_total, upi_total, unpaid_total
+        total = float(doc.get("total", 0))
+        if doc.get("payment_status") == "paid":
+            if doc.get("payment_method") == "split":
+                for p in doc.get("payments", []):
+                    m = p.get("method")
+                    a = float(p.get("amount", 0))
+                    if m == "cash":
+                        cash_total += a
+                    elif m == "upi":
+                        upi_total += a
+            elif doc.get("payment_method") == "cash":
+                cash_total += total
+            elif doc.get("payment_method") == "upi":
+                upi_total += total
+        else:
+            unpaid_total += total
+            unpaid_bills.append({
+                "id": doc["id"],
+                "kind": kind,
+                "title": (
+                    f"{doc.get('station_name', 'Station')} · {doc.get('customer_name', '')}"
+                    if kind == "session" else
+                    f"POS · {doc.get('customer_name') or 'Walk-in'}"
+                ),
+                "total": total,
+                "customer_phone": doc.get("customer_phone"),
+                "customer_name": doc.get("customer_name"),
+                "created_at": doc.get("end_time") if kind == "session" else doc.get("created_at"),
+            })
+
+    for s in sessions:
+        if _in_range(s.get("end_time"), start, end):
+            time_revenue += float(s.get("time_cost", 0))
+            fnb_revenue += float(s.get("items_cost", 0))
+            session_count += 1
+            add_payments(s, "session")
+
+    for p in pos:
+        if _in_range(p.get("created_at"), start, end):
+            fnb_revenue += float(p.get("total", 0))
+            pos_count += 1
+            add_payments(p, "pos")
+
+    collected = round(cash_total + upi_total, 2)
+    total_billed = round(collected + unpaid_total, 2)
+    unpaid_bills.sort(key=lambda x: x["created_at"] or "", reverse=True)
+
+    return {
+        "date": start.date().isoformat(),
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "cash_total": round(cash_total, 2),
+        "upi_total": round(upi_total, 2),
+        "collected": collected,
+        "unpaid_total": round(unpaid_total, 2),
+        "total_billed": total_billed,
+        "time_revenue": round(time_revenue, 2),
+        "fnb_revenue": round(fnb_revenue, 2),
+        "session_count": session_count,
+        "pos_count": pos_count,
+        "unpaid_bills": unpaid_bills,
+    }
+
+
 @api_router.get("/analytics/summary")
 async def analytics_summary(range_type: str = "daily", date: Optional[str] = None):
     """range_type: 'daily' -> single day; 'monthly' -> whole month.

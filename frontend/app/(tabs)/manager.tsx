@@ -147,6 +147,21 @@ export default function ManagerScreen() {
             <StatCard label="Play Time" value={`${Math.round(data.total_minutes / 60)}h`} icon="time-outline" />
           </View>
 
+          <Pressable
+            onPress={() => router.push("/modal/close-out")}
+            style={styles.shiftCard}
+            testID="open-close-out"
+          >
+            <View style={styles.shiftIcon}>
+              <Ionicons name="print" size={22} color={colors.onBrand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.shiftTitle}>Shift Close-Out</Text>
+              <Text style={styles.shiftSub}>Cash vs UPI totals · outstanding list · PDF / WhatsApp handover</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceTertiary} />
+          </Pressable>
+
           <View style={styles.chartCard}>
             <Text style={styles.chartTitle}>Revenue Breakdown</Text>
             <View style={styles.legendRow}>
@@ -286,4 +301,24 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12,
   },
   lockText: { color: colors.onSurface, fontWeight: "700" },
+  shiftCard: {
+    backgroundColor: colors.surfaceSecondary,
+    borderColor: colors.brand,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  shiftIcon: {
+    height: 44,
+    width: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.brand,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shiftTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
+  shiftSub: { color: colors.onSurfaceTertiary, fontSize: 11, marginTop: 2 },
 });
