@@ -1,0 +1,156 @@
+{
+  "app_name": "Playzo Gamezone Hub",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A tactical, OLED-friendly operational command center built for speed, illuminated by controlled neon accents that evoke high-end RGB gaming rigs.",
+  "color": {
+    "surface": "#0F0F11",
+    "onSurface": "#F4F4F5",
+    "surfaceSecondary": "#18181C",
+    "onSurfaceSecondary": "#D4D4D8",
+    "surfaceTertiary": "#222228",
+    "onSurfaceTertiary": "#A1A1AA",
+    "surfaceInverse": "#FAFAFA",
+    "onSurfaceInverse": "#0F0F11",
+    "brand": "#CCFF00",
+    "brandPrimary": "#CCFF00",
+    "onBrandPrimary": "#050505",
+    "brandSecondary": "#FF2A55",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#2A2A35",
+    "onBrandTertiary": "#E4E4E7",
+    "success": "#00FF66",
+    "onSuccess": "#050505",
+    "warning": "#FFB800",
+    "onWarning": "#050505",
+    "error": "#FF2A55",
+    "onError": "#FFFFFF",
+    "info": "#00E5FF",
+    "onInfo": "#050505",
+    "border": "#272730",
+    "borderStrong": "#3F3F4E",
+    "divider": "#1F1F24"
+  },
+  "typography": {
+    "displayFontFamily": "Rajdhani",
+    "textFontFamily": "IBM Plex Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use strict grid spacing. Keep layouts dense but readable for fast operation. Sticky primary CTAs at bottom with safe-area clearance.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use solid surfaceSecondary and surfaceTertiary to maintain tactical clarity."
+    ],
+    "dont's": [
+      "No blur or glass effects. Utility dashboards need maximum contrast and performance, especially with live timers."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home (Station Grid)",
+      "purpose": "Live operational view of all gaming stations (Available, Occupied, Maintenance) with running timers.",
+      "states": {
+        "loading": "Centered neon lime spinner on deep carbon background.",
+        "empty": "Phosphor Desktop icon with 'No stations configured' and 'Add Station' CTA.",
+        "error": "Error text in Neon Pink with 'Retry' CTA."
+      },
+      "layout": "Sticky top header with total revenue metric. Horizontal-scroll chip row for filtering (All, PC, Console, Table) directly below header. 2-column grid of Station Cards. Cards use top border colored by status (Success=Available, Error=Occupied, Warning=Maintenance). Active cards show large Rajdhani live timer."
+    },
+    {
+      "name": "Session Detail",
+      "purpose": "Manage an active session, add F&B items, and finalize the bill.",
+      "states": {
+        "loading": "Centered neon lime spinner.",
+        "empty": "Not applicable (only opens on specific station tap).",
+        "error": "Error text with 'Go Back' CTA."
+      },
+      "layout": "Bottom sheet or modal. Large monospace timer at the top. Customer CRM inputs (Name, Phone). List of added F&B items. Sticky primary CTA 'End Session & Generate Bill' anchored at bottom."
+    },
+    {
+      "name": "F&B POS (Standalone)",
+      "purpose": "Quick billing for walk-in food and beverage customers.",
+      "states": {
+        "loading": "Centered neon lime spinner.",
+        "empty": "Hamburger icon with 'Menu is empty' message.",
+        "error": "Error text with 'Retry' CTA."
+      },
+      "layout": "2-column grid for food items with high-contrast imagery and price tags. Persistent floating cart summary sticky above bottom tabs. Tap item to increment counter."
+    },
+    {
+      "name": "Manager Dashboard",
+      "purpose": "Secure analytics view for daily and monthly revenue broken down by Time vs F&B.",
+      "states": {
+        "loading": "Centered neon lime spinner.",
+        "empty": "Chart icon with 'No data available for this period'.",
+        "error": "Error text with 'Retry' CTA."
+      },
+      "layout": "PIN Pad overlay (numeric grid, secure entry). Once unlocked: Stacked metric cards and interactive bar/line charts. Filters for Daily/Monthly at the top."
+    },
+    {
+      "name": "Bill Summary",
+      "purpose": "Itemized bill view after ending a session or standalone POS order.",
+      "states": {
+        "loading": "Centered neon lime spinner.",
+        "empty": "Not applicable.",
+        "error": "Error text with 'Go Back' CTA."
+      },
+      "layout": "Receipt-style layout on surfaceSecondary. Monospace itemized list (Time cost + Add-ons + Total). Sticky bottom row with 'Share via WhatsApp' and 'Close' buttons."
+    }
+  ],
+  "images": {
+    "hero_gaming_lounge": {
+      "url": "https://images.unsplash.com/photo-1701281941392-fd6c2d8d652b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBwYyUyMGdhbWluZyUyMGxvdW5nZSUyMG5lb24lMjByZ2IlMjBkYXJrJTIwcm9vbXxlbnwwfHx8fDE3ODM1MjA2NzZ8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1701281941392-fd6c2d8d652b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBwYyUyMGdhbWluZyUyMGxvdW5nZSUyMG5lb24lMjByZ2IlMjBkYXJrJTIwcm9vbXxlbnwwfHx8fDE3ODM1MjA2NzZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern PC gaming lounge with neon RGB lighting in a dark room"
+    },
+    "food_item_placeholder": {
+      "url": "https://images.unsplash.com/photo-1610614819513-58e34989848b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwxfHxjYWZlJTIwZmFzdCUyMGZvb2QlMjBzbmFja3MlMjBidXJnZXIlMjBmcmllcyUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4MzUyMDY3NXww&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1610614819513-58e34989848b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwxfHxjYWZlJTIwZmFzdCUyMGZvb2QlMjBzbmFja3MlMjBidXJnZXIlMjBmcmllcyUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4MzUyMDY3NXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Burger with dark background for POS menu"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Dark-First Utility DARK guidelines. Use solid dark colors (#0F0F11 base) and rely on neon accents (#CCFF00, #FF2A55, #00FF66) strictly for states, primary buttons, and live metrics.",
+    "No glassmorphism. Dashboards require maximum contrast, especially with live timers running on the screen.",
+    "Typography: Use Rajdhani for all large metrics, timers, and headers to emphasize the gaming/esports operational vibe. Use IBM Plex Sans for tables, forms, and general UI readability.",
+    "Implement the PIN pad layout securely for the Manager Dashboard view.",
+    "Ensure Station Cards clearly differentiate between Available, Occupied, and Maintenance using the success, error, and warning tokens as a top border or side accent. Do not fill the entire card with the status color.",
+    "Always maintain a sticky CTA at the bottom of scrollable views like the Session Detail and F&B POS screens, leaving enough safe-area padding below."
+  ]
+}
