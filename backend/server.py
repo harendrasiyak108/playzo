@@ -200,7 +200,7 @@ async def root():
 
 # --------- Manager PIN ---------
 @api_router.post("/manager/verify-pin")
-async def verify_pin(payload: PinVerify):
+async def verify_pin(payload: PinVerify, user: dict = Depends(get_current_user)):
     cfg = await db.config.find_one({"_id": "manager_pin"}, {"_id": 0})
     if not cfg:
         raise HTTPException(500, "PIN not initialized")
@@ -209,7 +209,7 @@ async def verify_pin(payload: PinVerify):
 
 
 @api_router.post("/manager/change-pin")
-async def change_pin(payload: PinChange):
+async def change_pin(payload: PinChange, user: dict = Depends(get_current_user)):
     cfg = await db.config.find_one({"_id": "manager_pin"}, {"_id": 0})
     if not cfg or cfg["pin_hash"] != _hash(payload.current_pin):
         raise HTTPException(401, "Invalid current PIN")
@@ -722,7 +722,7 @@ def _day_bounds(date: Optional[str]) -> tuple[datetime, datetime]:
 
 
 @api_router.get("/reports/close-out")
-async def close_out_report(date: Optional[str] = None):
+async def close_out_report(date: Optional[str] = None, user: dict = Depends(get_current_user)):
     start, end = _day_bounds(date)
     sessions = await db.sessions.find({"status": "completed"}, {"_id": 0}).to_list(5000)
     pos = await db.pos_orders.find({}, {"_id": 0}).to_list(5000)
@@ -803,7 +803,7 @@ async def close_out_report(date: Optional[str] = None):
 
 
 @api_router.get("/analytics/summary")
-async def analytics_summary(range_type: str = "daily", date: Optional[str] = None):
+async def analytics_summary(range_type: str = "daily", date: Optional[str] = None, user: dict = Depends(get_current_user)):
     """range_type: 'daily' -> single day; 'monthly' -> whole month.
     date: YYYY-MM-DD for daily, YYYY-MM for monthly (defaults to today/this month, UTC)."""
     now = datetime.now(timezone.utc)
