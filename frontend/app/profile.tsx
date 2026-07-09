@@ -9,6 +9,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -19,8 +20,12 @@ export default function ProfileScreen() {
   const save = async () => {
     setLoading(true);
     try {
-      const updated = await api.updateMe({ name: name || undefined, email: email || undefined });
+      // validations
+      if (email && !email.includes("@")) throw new Error("Invalid email address");
+      if (password && password.length < 6) throw new Error("Password must be at least 6 characters");
+      const updated = await api.updateMe({ name: name || undefined, email: email || undefined, password: password || undefined });
       await setUser(updated);
+      setPassword("");
       Alert.alert("Saved", "Profile updated");
     } catch (e: any) {
       Alert.alert("Save failed", e.message || String(e));
@@ -45,6 +50,7 @@ export default function ProfileScreen() {
       <Text style={styles.title}>Profile</Text>
       <TextInput style={styles.input} placeholder="Name" value={name} onChangeText={setName} />
       <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="New password (optional)" value={password} onChangeText={setPassword} secureTextEntry />
       <TouchableOpacity style={styles.button} onPress={save} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? 'Saving...' : 'Save'}</Text>
       </TouchableOpacity>
