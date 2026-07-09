@@ -52,7 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserState(null);
   };
 
-  const setUser = (u: User) => setUserState(u);
+  const setUser = async (u: User) => {
+    setUserState(u);
+    if (u) await storage.setItem("current_user", u);
+    else await storage.removeItem("current_user");
+  };
 
   return <AuthContext.Provider value={{ user, loading, logout, setUser }}>{children}</AuthContext.Provider>;
 }

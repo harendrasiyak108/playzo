@@ -225,6 +225,11 @@ export const api = {
       body: JSON.stringify({ current_pin, new_pin }),
     }),
 
+  // Current user
+  me: () => req<{ id: string; name?: string; email?: string }>("/auth/me"),
+  updateMe: (data: { name?: string; email?: string; password?: string }) =>
+    req<{ id: string; name?: string; email?: string }>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+
   // Analytics
   analytics: (range_type: "daily" | "monthly", date?: string) =>
     req<Analytics>(`/analytics/summary?range_type=${range_type}${date ? `&date=${date}` : ""}`),
