@@ -2,17 +2,20 @@ import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/contexts/AuthContext";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { setUser } = useAuth();
 
   const submit = async () => {
     setLoading(true);
     try {
-      await api.login(email, password);
+      const r = await api.login(email, password);
+      try { setUser(r.user); } catch (e) {}
       router.replace("/");
     } catch (e: any) {
       Alert.alert("Login failed", e.message || String(e));

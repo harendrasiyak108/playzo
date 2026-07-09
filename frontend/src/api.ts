@@ -139,6 +139,7 @@ export const api = {
       { method: "POST", body: JSON.stringify({ name, email, password }) },
     );
     await storage.secureSet("auth_token", r.access_token);
+    await storage.setItem("current_user", r.user);
     return r;
   },
   login: async (email: string, password: string) => {
@@ -147,6 +148,7 @@ export const api = {
       { method: "POST", body: JSON.stringify({ email, password }) },
     );
     await storage.secureSet("auth_token", r.access_token);
+    await storage.setItem("current_user", r.user);
     return r;
   },
   logout: async () => {

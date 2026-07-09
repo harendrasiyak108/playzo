@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from "react-native";
+import { UserBadge } from "@/src/components/UserBadge";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing } from "@/src/theme";
 
@@ -21,6 +22,7 @@ export function ScreenHeader({
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {right}
+      <UserBadge />
     </View>
   );
 }
