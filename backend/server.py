@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -460,6 +460,61 @@ async def login(body: dict):
         raise HTTPException(401, "Invalid credentials")
     token = _create_token({"sub": user["id"], "email": email})
     return {"access_token": token, "token_type": "bearer", "user": {"id": user["id"], "name": user.get("name"), "email": email}}
+
+
+def _get_token_from_header(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    parts = authorization.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1]
+    return None
+
+
+async def get_current_user(authorization: str | None = Header(None)):
+    token = _get_token_from_header(authorization)
+    if not token:
+        raise HTTPException(401, "Missing authorization token")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        uid = payload.get("sub")
+    except Exception:
+        raise HTTPException(401, "Invalid token")
+    user = await db.users.find_one({"id": uid}, {"_id": 0})
+    if not user:
+        raise HTTPException(401, "User not found")
+    return user
+
+
+@api_router.get("/auth/me")
+async def me(user: dict = Depends(get_current_user)):
+    return {"id": user["id"], "name": user.get("name"), "email": user.get("email")}
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+
+@api_router.patch("/auth/me")
+async def update_me(payload: UserUpdate, user: dict = Depends(get_current_user)):
+    updates: dict = {}
+    if payload.name is not None:
+        updates["name"] = payload.name.strip()
+    if payload.email is not None:
+        new_email = payload.email.strip().lower()
+        if new_email and new_email != user.get("email"):
+            exists = await db.users.find_one({"email": new_email})
+            if exists:
+                raise HTTPException(400, "Email already in use")
+            updates["email"] = new_email
+    if payload.password:
+        updates["password_hash"] = _hash_password(payload.password)
+    if updates:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
+    doc = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    return {"id": doc["id"], "name": doc.get("name"), "email": doc.get("email")}
 
 
 
