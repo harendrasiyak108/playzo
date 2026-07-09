@@ -4,7 +4,7 @@
     "slug": "playzo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/playzo-logo.jpg",
+    "icon": "./assets/images/icon.png",
     "scheme": "playzo",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -17,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/playzo-logo.jpg",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
@@ -27,7 +27,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/playzo-logo.jpg"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
