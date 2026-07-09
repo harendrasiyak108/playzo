@@ -1,16 +1,19 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Playzo",
+    "slug": "playzo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "playzo",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.gamezoneops.vk07cc"
+      "bundleIdentifier": "com.emergent.gamezoneops.vk07cc",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Pick a customer from your contacts to start a session."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.gamezoneops.vk07cc"
+      "package": "com.emergent.gamezoneops.vk07cc",
+      "permissions": ["android.permission.READ_CONTACTS"]
     },
     "web": {
       "bundler": "metro",
@@ -31,12 +35,18 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-image.png",
-          "imageWidth": 200,
+          "imageWidth": 240,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Pick a customer from your contacts to generate their final bill."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
