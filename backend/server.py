@@ -10,6 +10,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 from datetime import datetime, timezone, timedelta
+import jwt
+from passlib.context import CryptContext
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -17,6 +19,12 @@ load_dotenv(ROOT_DIR / ".env")
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
+
+# Auth
+PWD_CTX = CryptContext(schemes=["bcrypt"], deprecated="auto")
+JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
+JWT_ALGO = "HS256"
+JWT_EXP_HOURS = int(os.environ.get("JWT_EXP_HOURS", "8"))
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -400,6 +408,59 @@ async def end_session(session_id: str):
 class UpdateCustomerRequest(BaseModel):
     customer_name: str
     customer_phone: str
+
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class UserPublic(BaseModel):
+    id: str
+    name: str
+    email: str
+
+
+def _hash_password(pw: str) -> str:
+    return PWD_CTX.hash(pw)
+
+
+def _verify_password(pw: str, hashed: str) -> bool:
+    return PWD_CTX.verify(pw, hashed)
+
+
+def _create_token(data: dict, hours: int = JWT_EXP_HOURS) -> str:
+    payload = data.copy()
+    exp = datetime.now(timezone.utc) + timedelta(hours=hours)
+    payload.update({"exp": exp})
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+
+@api_router.post("/auth/register")
+async def register(payload: UserCreate):
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Invalid email")
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(400, "Email already registered")
+    user = {"id": str(uuid.uuid4()), "name": payload.name.strip(), "email": email, "password_hash": _hash_password(payload.password)}
+    await db.users.insert_one(user)
+    token = _create_token({"sub": user["id"], "email": email})
+    return {"access_token": token, "token_type": "bearer", "user": {"id": user["id"], "name": user["name"], "email": email}}
+
+
+@api_router.post("/auth/login")
+async def login(body: dict):
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not _verify_password(password, user.get("password_hash", "")):
+        raise HTTPException(401, "Invalid credentials")
+    token = _create_token({"sub": user["id"], "email": email})
+    return {"access_token": token, "token_type": "bearer", "user": {"id": user["id"], "name": user.get("name"), "email": email}}
+
 
 
 @api_router.patch("/sessions/{session_id}/customer", response_model=Session)
