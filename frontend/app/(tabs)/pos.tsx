@@ -157,6 +157,7 @@ export default function POSScreen() {
             >
               <Text style={styles.checkoutText}>{submitting ? "…" : "Checkout"}</Text>
             </Pressable>
+          </View>
         </View>
       )}
     </View>
