@@ -143,7 +143,7 @@ export const api = {
   deleteMenu: (id: string) => req(`/menu-items/${id}`, { method: "DELETE" }),
 
   // Sessions
-  startSession: (data: { station_id: string; customer_name: string; customer_phone: string }) =>
+  startSession: (data: { station_id: string; customer_name?: string; customer_phone?: string }) =>
     req<Session>("/sessions/start", { method: "POST", body: JSON.stringify(data) }),
   getSession: (id: string) => req<Session>(`/sessions/${id}`),
   addItems: (id: string, items: SessionItem[]) =>
@@ -157,6 +157,8 @@ export const api = {
       body: JSON.stringify({ menu_item_id }),
     }),
   endSession: (id: string) => req<Session>(`/sessions/${id}/end`, { method: "POST" }),
+  updateSessionCustomer: (id: string, data: { customer_name: string; customer_phone: string }) =>
+    req<Session>(`/sessions/${id}/customer`, { method: "PATCH", body: JSON.stringify(data) }),
   activeSessions: () => req<Session[]>("/sessions/active"),
 
   // POS
@@ -164,6 +166,11 @@ export const api = {
     req<{ id: string; total: number; items: SessionItem[]; created_at: string }>(
       "/pos/orders",
       { method: "POST", body: JSON.stringify(data) },
+    ),
+  updatePOSCustomer: (id: string, data: { customer_name: string; customer_phone: string }) =>
+    req<{ id: string; total: number; items: SessionItem[]; created_at: string }>(
+      `/pos/orders/${id}/customer`,
+      { method: "PATCH", body: JSON.stringify(data) },
     ),
 
   // Bills

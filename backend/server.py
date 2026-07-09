@@ -74,8 +74,8 @@ class SessionItem(BaseModel):
 
 class SessionStart(BaseModel):
     station_id: str
-    customer_name: str
-    customer_phone: str
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
 
 
 class AddItemsRequest(BaseModel):
@@ -88,8 +88,8 @@ class Session(BaseModel):
     station_name: str
     station_type: str
     hourly_rate: float
-    customer_name: str
-    customer_phone: str
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     start_time: str  # ISO string UTC
     end_time: Optional[str] = None
     items: List[SessionItem] = []
@@ -314,8 +314,8 @@ async def start_session(payload: SessionStart):
         station_name=station["name"],
         station_type=station["type"],
         hourly_rate=station["hourly_rate"],
-        customer_name=payload.customer_name.strip(),
-        customer_phone=payload.customer_phone.strip(),
+        customer_name=payload.customer_name.strip() if payload.customer_name else None,
+        customer_phone=payload.customer_phone.strip() if payload.customer_phone else None,
         start_time=_now_iso(),
     )
     await db.sessions.insert_one(sess.dict())
@@ -395,6 +395,39 @@ async def end_session(session_id: str):
     )
     doc.update(updates)
     return doc
+
+
+class UpdateCustomerRequest(BaseModel):
+    customer_name: str
+    customer_phone: str
+
+
+@api_router.patch("/sessions/{session_id}/customer", response_model=Session)
+async def update_session_customer(session_id: str, payload: UpdateCustomerRequest):
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Session not found")
+    updates = {
+        "customer_name": payload.customer_name.strip() or None,
+        "customer_phone": payload.customer_phone.strip() or None,
+    }
+    await db.sessions.update_one({"id": session_id}, {"$set": updates})
+    doc.update(updates)
+    return Session(**doc)
+
+
+@api_router.patch("/pos/orders/{order_id}/customer", response_model=POSOrder)
+async def update_pos_customer(order_id: str, payload: UpdateCustomerRequest):
+    doc = await db.pos_orders.find_one({"id": order_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Order not found")
+    updates = {
+        "customer_name": payload.customer_name.strip() or None,
+        "customer_phone": payload.customer_phone.strip() or None,
+    }
+    await db.pos_orders.update_one({"id": order_id}, {"$set": updates})
+    doc.update(updates)
+    return POSOrder(**doc)
 
 
 # --------- POS (walk-in) ---------

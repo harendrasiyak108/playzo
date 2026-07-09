@@ -6,8 +6,6 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
-  TextInput,
-  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -23,9 +21,6 @@ export default function POSScreen() {
   const [cart, setCart] = useState<Record<string, SessionItem>>({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>("all");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [showCustomer, setShowCustomer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -82,13 +77,8 @@ export default function POSScreen() {
     try {
       const order = await api.createPOS({
         items: cartItems,
-        customer_name: customerName || undefined,
-        customer_phone: customerPhone || undefined,
       });
       setCart({});
-      setCustomerName("");
-      setCustomerPhone("");
-      setShowCustomer(false);
       router.push({ pathname: "/modal/bill-view", params: { billId: order.id, kind: "pos" } });
     } catch (e) {
       console.log("checkout err", e);
@@ -154,50 +144,19 @@ export default function POSScreen() {
 
       {count > 0 && (
         <View style={[styles.cartBar, { paddingBottom: insets.bottom + 76 }]}>
-          {showCustomer && (
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 120 }}>
-              <TextInput
-                placeholder="Customer name (optional)"
-                placeholderTextColor={colors.onSurfaceTertiary}
-                value={customerName}
-                onChangeText={setCustomerName}
-                style={styles.input}
-                testID="pos-customer-name"
-              />
-              <TextInput
-                placeholder="Phone (optional)"
-                placeholderTextColor={colors.onSurfaceTertiary}
-                value={customerPhone}
-                onChangeText={setCustomerPhone}
-                style={styles.input}
-                keyboardType="phone-pad"
-                testID="pos-customer-phone"
-              />
-            </ScrollView>
-          )}
           <View style={styles.cartRow}>
             <View>
               <Text style={styles.cartLabel}>Total ({count} items)</Text>
               <Text style={styles.cartTotal} testID="pos-total">{money(total)}</Text>
             </View>
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <Pressable
-                onPress={() => setShowCustomer((s) => !s)}
-                style={styles.altBtn}
-                testID="pos-toggle-customer"
-              >
-                <Ionicons name="person" size={18} color={colors.onSurface} />
-              </Pressable>
-              <Pressable
-                onPress={checkout}
-                disabled={submitting}
-                style={styles.checkoutBtn}
-                testID="pos-checkout"
-              >
-                <Text style={styles.checkoutText}>{submitting ? "…" : "Checkout"}</Text>
-              </Pressable>
-            </View>
-          </View>
+            <Pressable
+              onPress={checkout}
+              disabled={submitting}
+              style={styles.checkoutBtn}
+              testID="pos-checkout"
+            >
+              <Text style={styles.checkoutText}>{submitting ? "…" : "Checkout"}</Text>
+            </Pressable>
         </View>
       )}
     </View>
@@ -247,17 +206,6 @@ const styles = StyleSheet.create({
   cartRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cartLabel: { color: colors.onSurfaceTertiary, fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", fontWeight: "700" },
   cartTotal: { color: colors.brand, fontSize: 24, fontWeight: "900", letterSpacing: 1 },
-  altBtn: { backgroundColor: colors.surfaceTertiary, height: 48, width: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
   checkoutBtn: { backgroundColor: colors.brand, paddingHorizontal: spacing.xl, height: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   checkoutText: { color: colors.onBrand, fontWeight: "900", fontSize: 15, letterSpacing: 0.8 },
-  input: {
-    backgroundColor: colors.surfaceTertiary,
-    borderColor: colors.border,
-    borderWidth: 1,
-    color: colors.onSurface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    marginBottom: spacing.sm,
-  },
 });
