@@ -1,12 +1,18 @@
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
 
+import { storage } from "./utils/storage";
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await storage.secureGet<string | null>("auth_token", null);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
+    headers,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -126,6 +132,26 @@ export type Analytics = {
 };
 
 export const api = {
+  // Auth
+  register: async (name: string, email: string, password: string) => {
+    const r = await req<{ access_token: string; token_type: string; user: any }>(
+      "/auth/register",
+      { method: "POST", body: JSON.stringify({ name, email, password }) },
+    );
+    await storage.secureSet("auth_token", r.access_token);
+    return r;
+  },
+  login: async (email: string, password: string) => {
+    const r = await req<{ access_token: string; token_type: string; user: any }>(
+      "/auth/login",
+      { method: "POST", body: JSON.stringify({ email, password }) },
+    );
+    await storage.secureSet("auth_token", r.access_token);
+    return r;
+  },
+  logout: async () => {
+    await storage.secureRemove("auth_token");
+  },
   // Stations
   listStations: () => req<Station[]>("/stations"),
   createStation: (data: Omit<Station, "id" | "status" | "active_session_id">) =>
